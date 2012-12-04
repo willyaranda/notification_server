@@ -8,15 +8,19 @@
 
 var dgram = require('dgram');
 
-function connector_udp(data,conn) {
+function connector_udp(data, connection) {
   this.data = data;
-  this.connection = conn;
+  this.connection = connection;
   this.connection.close();
 }
 
 connector_udp.prototype = {
   getType: function() {
     return "UDP";
+  },
+
+  getServer: function() {
+    return 'UDP';
   },
 
   getInterface: function() {

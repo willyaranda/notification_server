@@ -23,9 +23,9 @@ NS_UA_UDP_main.prototype = {
     log.info("NS_UA_UDP server starting");
   },
 
-  stop: function(callback) {
+  stop: function() {
     log.info("NS_UA_UDP server stopping");
-    this.servers.stop(callback);
+    this.servers.stop();
   }
 };
 
