@@ -11,6 +11,7 @@ var config = require('../config.js').NS_AS,
 
 function NS_AS_main() {
   this.servers = [];
+  this.controlledClose = false;
 }
 
 NS_AS_main.prototype = {
@@ -25,10 +26,17 @@ NS_AS_main.prototype = {
   },
 
   stop: function() {
+    if (this.controlledClose) {
+      return;
+    }
+    this.controlledClose = true;
     log.info("NS_AS::stop --> server stopping");
-    (this.servers).forEach(function(server) {
+    this.servers.forEach(function(server) {
       server.stop();
     });
+    setTimeout(function() {
+      process.exit(0);
+    }, 10000);
   }
 };
 

@@ -11,6 +11,7 @@ var config = require('../config.js').NS_WakeUp,
 
 function NS_WakeUp_main() {
   this.servers = [];
+  this.controlledClose = false;
 }
 
 NS_WakeUp_main.prototype = {
@@ -27,10 +28,19 @@ NS_WakeUp_main.prototype = {
   },
 
   stop: function() {
+    if (this.controlledClose) {
+      return;
+    }
+    this.controlledClose = true;
     log.info("NS_WakeUp server stopping");
-    (this.servers).forEach(function(server) {
+    this.servers.forEach(function(server) {
       server.stop();
     });
+
+    setTimeout(function() {
+      process.exit(0);
+    }, 10000);
+
   }
 };
 

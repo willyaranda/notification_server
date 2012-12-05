@@ -24,25 +24,21 @@ Connector.prototype = {
       return callback(null, this.nodesConnectors[data.uatoken]);
     } else if (data.interface && data.interface.ip && data.interface.port &&
        data.mobilenetwork && data.mobilenetwork.mcc && data.mobilenetwork.mnc) {
-      mn.getNetwork(data.mobilenetwork.mcc, data.mobilenetwork.mnc, function(op) {
-        var connector = null;
-        if(op && op.wakeup) {
-          log.debug("getConnector: UDP WakeUp server for " + op.operator + ": " + op.wakeup);
-          connector = new connector_udp(data, connection);
-          // No need to create a entry for UDP connections
-          //this.nodesConnectors[data.uatoken] = connector;
-          callback(null, connector);
-        } else {
-          if(op && op.operator) {
-            log.debug("getConnector: No UDP WakeUp server found for " + op.operator);
-          } else {
-            log.debug("getConnector: No operator found for MCC=" +
-              data.mobilenetwork.mcc + " and MNC=" + data.mobilenetwork.mnc);
-          }
-          connector = new connector_ws(data, connection);
-          this.nodesConnectors[data.uatoken] = connector;
-          callback(null, connector);
+      mn.getNetwork(data.mobilenetwork.mcc, data.mobilenetwork.mnc, function(error, op) {
+        if (error) {
+          log.error('UDP::queue::onNewMessage --> Error getting the operator from the DB: ' + error);
+          return;
         }
+        if (!op || !op.wakeup) {
+          log.debug("UDP::queue::onNewMessage --> No WakeUp server found for MCC=" +
+              data.mobilenetwork.mcc + " and MNC=" + data.mobilenetwork.mnc);
+          return;
+        }
+        var connector = null;
+        log.debug("getConnector: UDP WakeUp server for " + op.operator + ": " + op.wakeup);
+        connector = new connector_udp(data, connection);
+        this.nodesConnectors[data.uatoken] = connector;
+        callback(null, connector);
       }.bind(this));
     } else {
       //Fallback
@@ -57,8 +53,10 @@ Connector.prototype = {
   },
 
   getUAtokenForConnection: function(connection) {
-    //FIXME
-    return "blah blah";
+    Object.keys(this.nodesConnectors).forEach(function(elem) {
+      if(this.nodesConnectors[elem] === connection);
+      return this.nodesConnectors[elem];
+    });
   },
 
   unregisterUAToken: function(uatoken) {

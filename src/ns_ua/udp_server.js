@@ -42,6 +42,7 @@ function onNewMessage(message) {
    * }
    */
   // If message does not follow the above standard, return.
+  log.debug('UDP::queue::onNewMessage --> messageData =', messageData);
   if(!messageData.uatoken ||
      !messageData.data ||
      !messageData.data.interface ||
@@ -62,31 +63,34 @@ function onNewMessage(message) {
       " and using protocol: " + messageData.data.protocol
   );
 
-  mn.getNetwork(messageData.data.mobilenetwork.mcc, messageData.data.mobilenetwork.mnc, function(op) {
-    if(op && op.wakeup) {
-      log.debug("onNewMessage: UDP WakeUp server for " + op.operator + ": " + op.wakeup);
-
-      // Send HTTP Notification Message
-      var options = {
-        host: op.wakeup.split(":")[0],
-        port: op.wakeup.split(":")[1],
-        path: '/?ip=' + messageData.data.interface.ip + '&port=' + messageData.data.interface.port + '&proto=' + messageData.data.protocol,
-        method: 'GET'
-      };
-
-      var req = http.request(options, function(res) {
-        log.debug('Message status: ' + res.statusCode);
-      });
-
-      req.on('error', function(e) {
-        log.debug('problem with request: ' + e.message);
-      });
-
-      req.end();
-    } else {
-      log.error("onNewMessage: No WakeUp server found");
-      // TODO: Remove Node from Mongo issue #63
+  mn.getNetwork(messageData.data.mobilenetwork.mcc, messageData.data.mobilenetwork.mnc, function(error, op) {
+    if (error) {
+      log.error('UDP::queue::onNewMessage --> Error getting the operator from the DB: ' + error);
+      return;
     }
+    if (!op || !op.wakeup) {
+      log.debug("UDP::queue::onNewMessage --> No WakeUp server found");
+      return;
+    }
+    log.debug("onNewMessage: UDP WakeUp server for " + op.operator + ": " + op.wakeup);
+
+    // Send HTTP Notification Message
+    var options = {
+      host: op.wakeup.split(":")[0],
+      port: op.wakeup.split(":")[1],
+      path: '/?ip=' + messageData.data.interface.ip + '&port=' + messageData.data.interface.port + '&proto=' + messageData.data.protocol,
+      method: 'GET'
+    };
+
+    var req = http.request(options, function(res) {
+      log.debug('Message status: ' + res.statusCode);
+    });
+
+    req.on('error', function(e) {
+      log.debug('problem with request: ' + e.message);
+    });
+
+    req.end();
   }.bind(this));
 }
 

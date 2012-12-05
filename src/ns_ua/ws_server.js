@@ -6,8 +6,6 @@
  * Guillermo Lopez Leal <gll@tid.es>
  */
 
-require('nodetime').profile();
-
 var log = require("../common/logger.js"),
     WebSocketServer = require('websocket').server,
     https = require('https'),
@@ -56,36 +54,40 @@ function onNewMessage(message) {
 
 function onNodeRegistered(error, data, uatoken) {
   var connection = this;
-  if (!error) {
-    //this is binded to connection
-    dataManager.getNodeData(uatoken, function(error, data) {
-      if(error) {
-        log.debug("WS::onWSMessage --> Failing registering UA");
-        connection.res({
-          errorcode: errorcodesWS.FAILED_REGISTERUA,
-          extradata: { messageType: "registerUA" }
-        });
-        return;
-      } else {
-        connection.res({
-          errorcode: errorcodes.NO_ERROR,
-          extradata: {
-            messageType: "registerUA",
-            status: "REGISTERED",
-            WATokens: data.wa,
-            messages: data.ms
-          }
-        });
-      }
-    });
-    log.debug("WS::onWSMessage --> OK register UA");
-  } else {
+  if (error) {
     connection.res({
       errorcode: errorcodesWS.FAILED_REGISTERUA,
       extradata: { messageType: "registerUA" }
     });
     log.debug("WS::onWSMessage --> Failing registering UA");
+    return;
   }
+  dataManager.getNodeData(uatoken, function(error, data) {
+    if(error) {
+      log.debug("WS::onWSMessage --> Failing registering UA");
+      connection.res({
+        errorcode: errorcodesWS.FAILED_REGISTERUA,
+        extradata: { messageType: "registerUA" }
+      });
+      return;
+    }
+    var WAtokensUrl = null;
+    if (data.wa) {
+      WAtokensUrl = (data.wa).map(function(watoken) {
+        return helpers.getNotificationURL(watoken);
+      });
+    }
+    connection.res({
+      errorcode: errorcodes.NO_ERROR,
+      extradata: {
+        messageType: "registerUA",
+        status: "REGISTERED",
+        WATokens: WAtokensUrl,
+        messages: data.ms
+      }
+    });
+    log.debug("WS::onWSMessage --> OK register UA");
+  });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,10 +291,9 @@ server.prototype = {
               extradata: { messageType: "registerUA" }
             });
             return connection.close();
-          } else {
-            log.debug("WS:onWSMessage --> Accepted uatoken=" + query.data.uatoken);
-            connection.uatoken = query.data.uatoken;
           }
+          log.debug("WS:onWSMessage --> Accepted uatoken=" + query.data.uatoken);
+          connection.uatoken = query.data.uatoken;
         } else if (!connection.uatoken) {
           log.debug("WS:onWSMessage --> No UAToken for this connection");
           connection.res({
@@ -398,14 +399,6 @@ server.prototype = {
             });
             break;
 
-          // FIXME: should we disable this call?
-          case "getAllMessages":
-            log.debug("WS::onWSMessage::getAllMessages --> Recovering messages for " + connection.uatoken);
-            dataManager.getAllMessagesForUA(connection.uatoken, function(messages) {
-              connection.sendUTF(JSON.stringify(messages));
-            });
-            break;
-
           case "getRegisteredWA":
             log.debug("WS::onWSMessage::getRegisteredWA --> Recovering list of registered WA");
             dataManager.getApplicationsForUA(connection.uatoken,
@@ -419,6 +412,7 @@ server.prototype = {
                       messageType: "getRegisteredWA"
                     }
                   });
+                  return;
                 }
                 log.debug("WS::onWSMessage::getRegisteredWA --> ", d);
                 var URLs = [];

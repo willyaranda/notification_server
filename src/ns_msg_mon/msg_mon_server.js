@@ -114,22 +114,25 @@ function onApplicationData(error, appData, json) {
 
 function onNodeData(nodeData, json) {
   if (!nodeData) {
-    return log.error("MSG_mon::onNodeData --> No node info, FIX YOUR BACKEND!");
+    log.error("MSG_mon::onNodeData --> No node info, FIX YOUR BACKEND!");
+    return;
   }
 
-  if (nodeData.connected !== 0) {
-    log.debug("MSG_mon::onNodeData --> Node connected:", nodeData);
-    log.notify("MSG_mon::onNodeData --> Notify into the messages queue of node " + nodeData.si + " # " + json._id);
-    var body = {
-      "messageId": json._id,
-      "uatoken": nodeData._id,
-      "data": nodeData.dt,
-      "payload": json
-    };
-    msgBroker.push(nodeData.si, body);
-  } else {
+  // Is the node connected? AKA: is websocket?
+  if (!nodeData.co) {
     log.debug("MSG_mon::onNodeData --> Node recovered but not connected, just delaying");
+    return;
   }
+
+  log.debug("MSG_mon::onNodeData --> Node connected:", nodeData);
+  log.notify("MSG_mon::onNodeData --> Notify into the messages queue of node " + nodeData.si + " # " + json._id);
+  var body = {
+    "messageId": json._id,
+    "uatoken": nodeData._id,
+    "data": nodeData.dt,
+    "payload": json
+  };
+  msgBroker.push(nodeData.si, body);
 }
 
 exports.monitor = monitor;

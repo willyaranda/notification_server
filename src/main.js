@@ -19,7 +19,8 @@ function generateServerId() {
 ////////////////////////////////////////////////////////////////////////////////
 
 function main() {
-  var server = null;
+  this.server = null;
+  this.controlledClose = false;
 }
 
 main.prototype = {
@@ -86,11 +87,19 @@ m.start();
 /////////////////////////
 // On close application
 function onClose() {
+  if (m.controlledClose) {
+    return;
+  }
+  m.controlledClose = true;
   log.info('Received interruption (2) signal');
   m.stop();
 }
 
 function onKill() {
+  if (m.controlledClose) {
+    return;
+  }
+  m.controlledClose = true;
   log.error('Received kill (9 or 15) signal');
   m.stop();
 }

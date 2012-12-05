@@ -11,7 +11,9 @@ var dgram = require('dgram');
 function connector_udp(data, connection) {
   this.data = data;
   this.connection = connection;
-  this.connection.close();
+
+  // Connection should be dropped by client
+  //this.connection.close();
 }
 
 connector_udp.prototype = {

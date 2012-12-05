@@ -53,10 +53,10 @@ var DataStore = function() {
       if(err) {
         log.critical("datastore::starting --> Error connecting to MongoDB ! - " + err);
         this.close();
-      } else {
-        log.info("datastore::starting --> Connected to MongoDB on " + ddbbsettings.machines + ". Database Name: " + ddbbsettings.ddbbname);
-        this.emit('ddbbconnected');
+        return;
       }
+      log.info("datastore::starting --> Connected to MongoDB on " + ddbbsettings.machines + ". Database Name: " + ddbbsettings.ddbbname);
+      this.emit('ddbbconnected');
     }.bind(this));
   },
 
@@ -67,34 +67,33 @@ var DataStore = function() {
 
   this.registerNode = function (uatoken, serverId, data, callback) {
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.update(
-          { _id:uatoken },
-          {
-            $set: {
-              si: serverId,
-              dt: data,
-              co: 1, // 0: disconnected, 1: WS, 2: UDP, don't know
-              lt: parseInt(new Date().getTime() / 1000 , 10) // save as seconds
-            }
-          },
-          { safe: true, upsert: true },
-          function(err, data) {
-            if(err) {
-              log.error("datastore::registerNode --> Error inserting/updating node into MongoDB -- " + err);
-              return callback(err);
-            } else {
-              log.debug("dataStore::registerNode --> Node inserted/updated ", uatoken);
-              return callback(null, data, uatoken);
-            }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::registerNode --> There was a problem opening the nodes collection -- " + err);
-        return callback(err);
+        callback(err);
+        return;
       }
+      collection.update(
+        { _id:uatoken },
+        {
+          $set: {
+            si: serverId,
+            dt: data,
+            co: 1, // 0: disconnected, 1: WS, 2: UDP, don't know
+            lt: parseInt(new Date().getTime() / 1000 , 10) // save as seconds
+          }
+        },
+        { safe: true, upsert: true },
+        function(err, data) {
+          if(err) {
+            log.error("datastore::registerNode --> Error inserting/updating node into MongoDB -- " + err);
+            callback(err);
+            return;
+          }
+          log.debug("dataStore::registerNode --> Node inserted/updated ", uatoken);
+          callback(null, data, uatoken);
+          return;
+      });
     });
   };
 
@@ -103,71 +102,63 @@ var DataStore = function() {
    */
    this.unregisterNode = function(uatoken, callback) {
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.update(
-          { _id: uatoken },
-          {
-            $set: {
-              co: 0,
-              lt: parseInt(new Date().getTime() / 1000 , 10) // save as seconds
-            }
-          },
-          { safe: true },
-          function(err, data) {
-            if (err) {
-              log.error("dataStore::unregisterNode --> There was a problem removing the node: " +  err);
-              return callback(err);
-            } else {
-              log.debug("datastore::unregisterNode --> Node removed from MongoDB");
-              return callback(null, data);
-            }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::unregisterNode --> There was a problem opening the nodes collection: " + err);
-        return callback(err);
+        callback(err);
+        return;
       }
+      collection.update(
+        { _id: uatoken },
+        {
+          $set: {
+            co: 0,
+            lt: parseInt(new Date().getTime() / 1000 , 10) // save as seconds
+          }
+        },
+        { safe: true },
+        function(err, data) {
+          if (err) {
+            log.error("dataStore::unregisterNode --> There was a problem removing the node: " +  err);
+            return callback(err);
+          }
+          log.debug("datastore::unregisterNode --> Node removed from MongoDB");
+          return callback(null, data);
+      });
     });
    };
 
   /**
    * Gets a node - server relationship
    */
-  this.getNodeData = function (token, callback) {
-    log.debug('datastore::getNodeData --> Finding info for node ' + token);
+  this.getNodeData = function (uatoken, callback) {
+    log.debug('datastore::getNodeData --> Finding info for node ' + uatoken);
     // Get from MongoDB
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.findOne( { _id: token }, function(err, data) {
-          if(err) {
-            log.error("datastore::getNodeData --> Error finding node into MongoDB: " + err);
-            callback(err);
-          } else {
-            if(data) {
-              log.debug("datastore::getNodeData --> Data found, calling callback with data");
-              callback(null, data);
-            } else {
-              log.debug("datastore::getNodeData --> Node not found!");
-              callback(null, null);
-            }
-          }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::getNodeData --> there was a problem opening the nodes collection: " + err);
         callback(err);
+        return;
       }
+      collection.findOne( { _id: uatoken }, function(err, data) {
+        if(err) {
+          log.error("datastore::getNodeData --> Error finding node into MongoDB: " + err);
+          callback(err);
+          return;
+        }
+        var msg = data ? "Data found, calling callback with data" : "Node not found";
+        log.debug("datastore::getNodeData --> " + msg);
+        callback(null, data);
+      });
+
     });
   },
 
   /**
    * Register a new application
    */
-  this.registerApplication = function (appToken, waToken, nodeToken, pbkbase64, callback) {
+  this.registerApplication = function (appToken, waToken, uatoken, pbkbase64, callback) {
     // Store in MongoDB
     this.db.collection("apps", function(err, collection) {
       if (!err) {
@@ -177,6 +168,10 @@ var DataStore = function() {
             {
               pb: pbkbase64,
               wa: waToken
+            },
+            $addToSet:
+            {
+              no: uatoken
             }
           },
           { safe: true, upsert: true },
@@ -192,63 +187,84 @@ var DataStore = function() {
       }
     });
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
+      callback = helpers.checkCallback(callback);
+      if (err) {
+        log.error("dataStore::registerApplication --> Error opening nodes collection: " + err);
+        callback(err);
+        return;
       }
-      if(!err) {
-        collection.update(
-          { _id: nodeToken },
-          {
-            $addToSet: {
-              wa: appToken
-            }
-          },
-          { safe: true, upsert: true },
-          function(err, data) {
-            if(err) {
-              log.error("dataStore::registerApplication --> Error inserting message to node: " + err);
-              callback(err);
-            } else {
-              log.debug("dataStore::registerApplication --> Message inserted");
-              callback(null, data);
-            }
+      collection.update(
+        { _id: uatoken },
+        {
+          $addToSet: {
+            wa: appToken
           }
-        );
-      }
+        },
+        { safe: true, upsert: true },
+        function(err, data) {
+          if(err) {
+            log.error("dataStore::registerApplication --> Error inserting message to node: " + err);
+            callback(err);
+            return;
+          }
+          log.debug("dataStore::registerApplication --> Message inserted");
+          callback(null, data);
+        }
+      );
     });
   },
 
   /**
    * Unregister an old application
    */
-  this.unregisterApplication = function (appToken, nodeToken, pbkbase64, callback) {
+  this.unregisterApplication = function (appToken, uatoken, pbkbase64, callback) {
     // Remove from MongoDB
+    this.db.collection("apps", function(err, collection) {
+      if (err) {
+        log.error('dataStore::unregisterApplication --> Error opening apps collection');
+        return;
+      }
+      collection.update(
+        { _id: appToken },
+        { $pull:
+          {
+            no: uatoken
+          }
+        },
+        { safe: true },
+        function(err, data) {
+          if (err) {
+            log.error('dataStore::unregisterApplication --> Some error occured ' + err);
+            return;
+          }
+          log.debug('dataStore::unregisterApplication --> Deleted node from apps collection');
+        }
+      );
+    });
+
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.update(
-          { _id: nodeToken },
-          { $pull:
-            {
-              wa: appToken
-            }
-          },
-          { safe: true },
-          function(err, data) {
-            if(!err) {
-              log.debug("datastore::unregisterApplication --> Application removed from node data");
-              return callback(null, data);
-            } else {
-              log.debug("datastore::unregisterApplication --> Error removing apptoken from the nodes: " + err);
-              return callback(err);
-            }
-          });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::unregisterApplication --> there was a problem opening the nodes collection: " + err);
-        return callback(err);
+        callback(err);
+        return;
       }
+      collection.update(
+        { _id: uatoken },
+        { $pull:
+          {
+            wa: appToken
+          }
+        },
+        { safe: true },
+        function(err, data) {
+          if (err) {
+            log.debug("datastore::unregisterApplication --> Error removing apptoken from the nodes: " + err);
+            return callback(err);
+          }
+          log.debug("datastore::unregisterApplication --> Application removed from node data");
+          return callback(null, data);
+        });
     });
   },
 
@@ -259,31 +275,27 @@ var DataStore = function() {
     // Get from MongoDB
     log.debug("datastore::getApplicationsOnUA --> Going to find applications in UA: " + uaToken);
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.find(
-          { _id: uaToken },
-          { wa: true }
-        ).toArray(function(err, data) {
-          if (err) {
-            log.error("datastore::getApplicationsForUA --> Error finding applications from MongoDB: " + err);
-            callback(err);
-          } else {
-            if (data.length) {
-              log.debug("datastore::getApplicationsOnUA --> Applications recovered, calling callback");
-              callback(null, data);
-            } else {
-              log.debug("datastore::getApplicationsOnUA --> No applications recovered :(");
-              callback(null, null);
-            }
-          }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::getApplicationsForUA --> there was a problem opening the apps collection");
         callback(err);
       }
+      collection.find(
+        { _id: uaToken },
+        { wa: true }
+      ).toArray(function(err, data) {
+        if (err) {
+          log.error("datastore::getApplicationsForUA --> Error finding applications from MongoDB: " + err);
+          return callback(err);
+        }
+        if (data.length) {
+          log.debug("datastore::getApplicationsOnUA --> Applications recovered, calling callback");
+          callback(null, data);
+        } else {
+          log.debug("datastore::getApplicationsOnUA --> No applications recovered :(");
+          callback(null, null);
+        }
+      });
     });
   },
 
@@ -294,35 +306,33 @@ var DataStore = function() {
     // Get from MongoDB
     log.debug("datastore::getApplication --> Going to find application with appToken: " + appToken);
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.find(
-          {
-            wa: appToken
-          },
-          {
-            _id: true,
-            co: true,
-            si: true
-          }
-        ).toArray(function(err, data) {
-          if (err) {
-            log.error("datastore::getApplication --> Error finding application from MongoDB: " + err);
-            callback(err);
-          } else {
-            log.debug("datastore::getApplication --> Application found");
-            if (data) {
-              log.debug("datastore::getApplication --> Application found, have callback, calling", data);
-              callback(null, data, json);
-            }
-          }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::getApplication --> there was a problem opening the apps collection");
         callback(err);
+        return;
       }
+      collection.find(
+        {
+          wa: appToken
+        },
+        {
+          _id: true,
+          co: true,
+          si: true
+        }
+      ).toArray(function(err, data) {
+        if (err) {
+          log.error("datastore::getApplication --> Error finding application from MongoDB: " + err);
+          callback(err);
+          return;
+        }
+        log.debug("datastore::getApplication --> Application found");
+        if (data) {
+          log.debug("datastore::getApplication --> Application found, have callback, calling", data);
+          callback(null, data, json);
+        }
+      });
     });
   },
 
@@ -330,39 +340,37 @@ var DataStore = function() {
    * Get the Pbk of the WA.
    * @ return the pbk.
    */
-  this.getPbkApplication = function(appToken2, callback) {
-    var appToken = appToken2.toString();
+  this.getPbkApplication = function(appToken, callback) {
+    var appToken = appToken.toString();
     log.debug("datastore::getPbkApplication --> Going to find the pbk for the appToken " + appToken);
     this.db.collection("apps", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.findOne( { _id: appToken }, function(err, data) {
-          if (err) {
-            log.error('datastore::getPbkApplication --> There was a problem finding the PbK - ' + err);
-            return callback(err);
-          } else {
-            if (data) {
-              if (data.pb) {
-                var pb = data.pb.toString('base64');
-                log.debug("datastore::getPbkApplication --> Found the pbk (base64) '" + pb + "' for the appToken '" + appToken);
-                //WARN: This returns the base64 as saved on the DDBB!!
-                callback(null, pb);
-              } else {
-                log.debug('datastore::getPbkApplication --> There are no pbk for the appToken ' + appToken);
-                callback("No PbK for the appToken=" + appToken);
-              }
-            } else {
-              log.debug('There are no appToken=' + appToken + ' in the DDBB');
-              callback(null, null);
-            }
-          }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error('datastore::getPbkApplication --> there was a problem opening the apps collection: ' +  err);
         callback(err);
+        return;
       }
+      collection.findOne( { _id: appToken }, function(err, data) {
+        if (err) {
+          log.error('datastore::getPbkApplication --> There was a problem finding the PbK - ' + err);
+          callback(err);
+          return;
+        }
+        if (!data) {
+          log.debug('There are no appToken=' + appToken + ' in the DDBB');
+          callback(null, null);
+          return;
+        }
+        if (data.pb) {
+          var pb = data.pb.toString('base64');
+          log.debug("datastore::getPbkApplication --> Found the pbk (base64) '" + pb + "' for the appToken '" + appToken);
+          //WARN: This returns the base64 as saved on the DDBB!!
+          callback(null, pb);
+        } else {
+          log.debug('datastore::getPbkApplication --> There are no pbk for the appToken ' + appToken);
+          callback("No PbK for the appToken=" + appToken);
+        }
+      });
     });
   },
 
@@ -379,25 +387,23 @@ var DataStore = function() {
       if(err) {
         log.error("datastore::newMessage --> There was a problem opening the messages collection: " + err);
         return;
-      } else {
-        collection.findAndModify(
-          { wa: apptoken },
-          [],
-          {
-            $addToSet:{
-              ms: msg
-            }
-          },
-          { safe: true },
-          function(err, data) {
-            if(err) {
-              log.error("dataStore::registerApplication --> Error inserting message to node: " + err);
-            } else {
-              log.debug("dataStore::registerApplication --> Message inserted");
-            }
-          }
-        );
       }
+      collection.findAndModify(
+        { wa: apptoken },
+        [],
+        {
+          $addToSet:{
+            ms: msg
+          }
+        },
+        function(err, data) {
+          if(err) {
+            log.error("dataStore::registerApplication --> Error inserting message to node: " + err);
+          } else {
+            log.debug("dataStore::registerApplication --> Message inserted");
+          }
+        }
+      );
     });
     return msg;
   },
@@ -409,31 +415,29 @@ var DataStore = function() {
     log.debug("Looking for messages of " + uatoken);
     // Get from MongoDB
     this.db.collection("nodes", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
+      callback = helpers.checkCallback(callback);
       if (err) {
         log.error("datastore::getAllMessagesForUA --> There was a problem opening the messages collection: " + err);
         callback(err);
-      } else {
-        collection.find(
-          { _id: uatoken },
-          { ms: true }
-        ).toArray(function(err, data) {
-          if (err) {
-            log.error("datastore::getAllMessagesForUA --> There was a problem finding the message: " + err);
-            callback(err);
-          } else {
-            if (data.length) {
-                log.debug("datastore::getAllMessagesForUA --> Messages found, calling callback");
-                callback(null, data);
-            } else {
-                log.debug("datastore::getAllMessagesForUA --> No messages found, calling callback");
-                callback(null, null);
-            }
-          }
-        });
+        return;
       }
+      collection.find(
+        { _id: uatoken },
+        { ms: true }
+      ).toArray(function(err, data) {
+        if (err) {
+          log.error("datastore::getAllMessagesForUA --> There was a problem finding the message: " + err);
+          callback(err);
+          return;
+        }
+        if (data.length) {
+          log.debug("datastore::getAllMessagesForUA --> Messages found, calling callback");
+          callback(null, data);
+        } else {
+          log.debug("datastore::getAllMessagesForUA --> No messages found, calling callback");
+          callback(null, null);
+        }
+      });
     });
   },
 
@@ -443,27 +447,28 @@ var DataStore = function() {
   this.removeMessage = function(messageId, uatoken) {
     log.debug('dataStore::removeMessage --> Going to remove message with _id=' + messageId + 'for the uatoken=' + uatoken);
     this.db.collection("nodes", function(err, collection) {
-      if (!err) {
-        collection.update(
-          {
-            _id: uatoken
-          },
-          { $pull:
-            {
-              'ms.messageId': messageId
-            }
-          },
-          { safe: true },
-          function(err, d) {
-            if(!err) {
-              log.debug("datastore::removeMessage --> Message removed from MongoDB");
-            } else {
-              log.error('dataStore::removeMessage --> Error removing message', err);
-            }
-          });
-      } else {
+      if (err) {
         log.error("datastore::removeMessage --> There was a problem opening the messages collection");
+        return;
       }
+      collection.update(
+        {
+          _id: uatoken
+        },
+        { $pull:
+          {
+            'ms._id': messageId
+          }
+        },
+        { safe: true },
+        function(err, d) {
+          if(err) {
+            log.error('dataStore::removeMessage --> Error removing message', err);
+            return;
+          }
+          log.notify("datastore::removeMessage --> Message removed from MongoDB " + messageId);
+        }
+      );
     });
   },
 
@@ -475,28 +480,26 @@ var DataStore = function() {
     log.debug("Looking for operator " + id);
     // Get from MongoDB
     this.db.collection("operators", function(err, collection) {
-      if (typeof callback !== 'function') {
-        callback = function() {};
-      }
-      if (!err) {
-        collection.findOne( { '_id': id }, function(err, data) {
-          if(!err) {
-            if (data) {
-              log.debug("datastore::getOperator --> The operator has been recovered. Calling callback");
-              return callback(null, data);
-            } else {
-              log.debug("datastore::getOperator --> No operator found. Calling callback");
-              return callback(null, null);
-            }
-          } else {
-            log.debug("datastore::getOperator --> Error finding operator from MongoDB: " + err);
-            return callback(err);
-          }
-        });
-      } else {
+      callback = helpers.checkCallback(callback);
+      if (err) {
         log.error("datastore::getOperator --> There was a problem opening the messages collection");
-        return callback(err);
+        callback(err);
+        return;
       }
+      collection.findOne( { '_id': id }, function(err, data) {
+        if (err) {
+          log.debug("datastore::getOperator --> Error finding operator from MongoDB: " + err);
+          callback(err);
+          return;
+        }
+        if (data) {
+          log.debug("datastore::getOperator --> The operator has been recovered. Calling callback");
+          return callback(null, data);
+        } else {
+          log.debug("datastore::getOperator --> No operator found. Calling callback");
+          return callback(null, null);
+        }
+      });
     });
   };
 };

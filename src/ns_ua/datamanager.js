@@ -102,17 +102,17 @@ datamanager.prototype = {
   /**
    * Register a new application
    */
-  registerApplication: function (appToken, waToken, nodeToken, pbkbase64, callback) {
+  registerApplication: function (appToken, waToken, uatoken, pbkbase64, callback) {
     // Store in persistent storage
-    dataStore.registerApplication(appToken, waToken, nodeToken, pbkbase64, callback);
+    dataStore.registerApplication(appToken, waToken, uatoken, pbkbase64, callback);
   },
 
  /**
    * Unregister an old application
    */
-  unregisterApplication: function (appToken, nodeToken, pbkbase64, callback) {
+  unregisterApplication: function (appToken, uatoken, pbkbase64, callback) {
     // Remove from persistent storage
-    dataStore.unregisterApplication(appToken, nodeToken, pbkbase64, callback);
+    dataStore.unregisterApplication(appToken, uatoken, pbkbase64, callback);
   },
 
   /**
