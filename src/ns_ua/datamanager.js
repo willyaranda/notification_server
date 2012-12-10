@@ -56,8 +56,10 @@ datamanager.prototype = {
     } else {
       log.debug("dataManager::unregisterNode --> Removing disconnected node uatoken " + uatoken);
       //Delete from DDBB
+      var fullyDisconnected = (Connectors.getConnectorForUAtoken(uatoken).getProtocol() !== "WS") ? 2 : 0;
       dataStore.unregisterNode(
         uatoken,
+        fullyDisconnected,
         function(error) {
           if (!error) {
             log.debug('dataManager::unregisterNode --> Unregistered');

@@ -127,10 +127,10 @@ function onNodeData(nodeData, json) {
   log.debug("MSG_mon::onNodeData --> Node connected:", nodeData);
   log.notify("MSG_mon::onNodeData --> Notify into the messages queue of node " + nodeData.si + " # " + json._id);
   var body = {
-    "messageId": json._id,
-    "uatoken": nodeData._id,
-    "data": nodeData.dt,
-    "payload": json
+    messageId: json._id,
+    uatoken: nodeData._id,
+    dt: nodeData.dt,
+    payload: json
   };
   msgBroker.push(nodeData.si, body);
 }

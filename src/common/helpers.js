@@ -33,11 +33,9 @@ function padNumber(number,len) {
 exports.padNumber = padNumber;
 
 function checkCallback(callback) {
-  if (typeof callback !== 'function') {
+  if (typeof callback !== 'function') {
     callback = function() {};
-    return callback;
-  } else {
-    return callback;
   }
+  return callback;
 }
 exports.checkCallback = checkCallback;

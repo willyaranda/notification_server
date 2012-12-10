@@ -100,7 +100,7 @@ var DataStore = function() {
   /**
    * Unregister a node
    */
-   this.unregisterNode = function(uatoken, callback) {
+   this.unregisterNode = function(uatoken, fullyDisconnected, callback) {
     this.db.collection("nodes", function(err, collection) {
       callback = helpers.checkCallback(callback);
       if (err) {
@@ -112,7 +112,7 @@ var DataStore = function() {
         { _id: uatoken },
         {
           $set: {
-            co: 0,
+            co: fullyDisconnected,
             lt: parseInt(new Date().getTime() / 1000 , 10) // save as seconds
           }
         },
@@ -266,6 +266,13 @@ var DataStore = function() {
           return callback(null, data);
         });
     });
+
+    //Remove the appToken if the nodelist (no) is empty
+    this.removeApplicationIfEmpty(appToken);
+  },
+
+  this.removeApplicationIfEmpty = function (appToken) {
+
   },
 
   /**
@@ -319,7 +326,8 @@ var DataStore = function() {
         {
           _id: true,
           co: true,
-          si: true
+          si: true,
+          dt: true
         }
       ).toArray(function(err, data) {
         if (err) {
@@ -328,10 +336,9 @@ var DataStore = function() {
           return;
         }
         log.debug("datastore::getApplication --> Application found");
-        if (data) {
-          log.debug("datastore::getApplication --> Application found, have callback, calling", data);
-          callback(null, data, json);
-        }
+        var msg = data ? "Application found, have callback, calling" : "No app found, calling callback";
+        log.debug("datastore::getApplication --> " + msg, data);
+        callback(null, data, json);
       });
     });
   },
@@ -492,13 +499,9 @@ var DataStore = function() {
           callback(err);
           return;
         }
-        if (data) {
-          log.debug("datastore::getOperator --> The operator has been recovered. Calling callback");
-          return callback(null, data);
-        } else {
-          log.debug("datastore::getOperator --> No operator found. Calling callback");
-          return callback(null, null);
-        }
+        var msg = data ? "The operator has been recovered. " : "No operator found. ";
+        log.debug("datastore::getOperator --> " + msg + " Calling callback");
+        return callback(null, data);
       });
     });
   };

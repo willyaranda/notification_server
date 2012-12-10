@@ -71,7 +71,7 @@ function onNodeRegistered(error, data, uatoken) {
       });
       return;
     }
-    var WAtokensUrl = null;
+    var WAtokensUrl = [];
     if (data.wa) {
       WAtokensUrl = (data.wa).map(function(watoken) {
         return helpers.getNotificationURL(watoken);
@@ -82,8 +82,9 @@ function onNodeRegistered(error, data, uatoken) {
       extradata: {
         messageType: "registerUA",
         status: "REGISTERED",
+        pushMode: data.dt.protocol,
         WATokens: WAtokensUrl,
-        messages: data.ms
+        messages: data.ms || []
       }
     });
     log.debug("WS::onWSMessage --> OK register UA");
@@ -251,7 +252,6 @@ server.prototype = {
         if(payload.extradata) {
           res = payload.extradata;
         }
-        res.statuscode = payload.errorcode[0];
         if(payload.errorcode[0] > 299) {    // Out of the 2xx series
           if(!res.status) {
             res.status = "ERROR";
