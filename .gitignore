@@ -1,3 +1,4 @@
 src/config.js
 node_modules/websocket/build/
 src/version.info
+node_modules/mongodb/node_modules/bson/build/
