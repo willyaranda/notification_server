@@ -28,10 +28,11 @@
     "dependencies": {
         "node-uuid": "1.4.x",
         "websocket": "1.0.x",
-        "mongodb": "1.x.x",
         "amqp": "0.1.x",
         "forever-monitor": "1.1.x",
-        "string" : "*"
+        "string" : "*",
+        "mongoose" : "3.6.x",
+        "async" : "0.2.x"
     },
     "devDependencies": {
         "vows": "0.7.x",
