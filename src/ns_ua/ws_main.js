@@ -30,7 +30,7 @@ NS_UA_WS_main.prototype = {
         config.interfaces[a].ssl);
       this.servers[a].init();
     }
-    log.info('NS_UA_WS server starting');
+    log.debug('NS_UA_WS::start --> server starting');
   },
 
   stop: function() {
@@ -38,14 +38,14 @@ NS_UA_WS_main.prototype = {
       return;
     }
     this.controlledClose = true;
-    log.info('NS_UA_WS server stopping');
+    log.debug('NS_UA_WS::stop --> server stopping');
     this.servers.forEach(function(elem) {
       elem.stop();
     });
 
     setTimeout(function() {
       process.exit(0);
-    }, 10000);
+    }, 1000);
   }
 };
 

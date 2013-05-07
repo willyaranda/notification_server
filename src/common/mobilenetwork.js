@@ -10,6 +10,8 @@ var datastore = require('./datastore.js'),
     log = require('../common/logger.js'),
     helpers = require('./helpers.js');
 
+var operator = require('./DB/operator');
+
 function MobileNetwork() {
   this.cache = {};
   this.ready = false;
@@ -58,7 +60,7 @@ MobileNetwork.prototype = {
     }
 
     // Check if the network if it's in the database and update cache
-    datastore.getOperator(mcc, mnc, function(error, d) {
+    operator.getOperator(mcc, mnc, function(error, d) {
       if (error) {
         log.error(log.messages.ERROR_MOBILENETWORKERROR,{
           'error': error

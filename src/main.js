@@ -73,7 +73,7 @@ main.prototype = {
   },
 
   stop: function() {
-    log.info('Closing the server correctly');
+    log.debug('Closing the server correctly');
     this.server.stop();
   }
 };

@@ -10,7 +10,9 @@ var log = require('../common/logger.js'),
     net = require('net'),
     fs = require('fs'),
     consts = require('../config.js').consts,
+    config = require('../config.js').NS_WakeUp,
     dgram = require('dgram'),
+    cluster = require('cluster'),
     pages = require('../common/pages.js'),
     maintance = require('../common/maintance.js');
 
@@ -30,24 +32,49 @@ server.prototype = {
   //////////////////////////////////////////////
 
   init: function() {
-    log.info('Starting WakeUp server');
+    log.debug('NS_WakeUp::init --> Starting WakeUp server');
 
-    // Create a new HTTP(S) Server
-    if (this.ssl) {
-      var options = {
-        key: fs.readFileSync(consts.key),
-        cert: fs.readFileSync(consts.cert)
-      };
-      this.server = require('https').createServer(options, this.onHTTPMessage.bind(this));
+    if (cluster.isMaster) {
+      log.info('NS_WakeUp::init --> We are goingo to fork ' + config.numProcesses +
+               ' processes');
+      for (var i = 0; i < config.numProcesses; i++) {
+        cluster.fork();
+      }
+
+      cluster.on('exit', function(worker, code, signal) {
+        if (code !== 0) {
+          log.error(log.messages.ERROR_WORKERERROR, {
+            "pid": worker.process.pid,
+            "code": code
+          });
+        } else {
+          log.info('NS_WakeUp::init --> worker ' + worker.process.pid + ' exit');
+        }
+      });
     } else {
-      this.server = require('http').createServer(this.onHTTPMessage.bind(this));
+      // Create a new HTTP(S) Server
+      if (this.ssl) {
+        var options = {
+          key: fs.readFileSync(consts.key),
+          cert: fs.readFileSync(consts.cert)
+        };
+        this.server = require('https').createServer(options, this.onHTTPMessage.bind(this));
+      } else {
+        this.server = require('http').createServer(this.onHTTPMessage.bind(this));
+      }
+      this.server.listen(this.port, this.ip);
+      log.info('NS_WakeUp::init --> HTTP' + (this.ssl ? 'S' : '') +
+               ' push WakeUp server starting on ' + this.ip + ':' + this.port);
     }
-    this.server.listen(this.port, this.ip);
-    log.info('NS_WakeUp::init --> HTTP' + (this.ssl ? 'S' : '') +
-             ' push WakeUp server starting on ' + this.ip + ':' + this.port);
   },
 
   stop: function() {
+    if (cluster.isMaster) {
+      setTimeout(function() {
+        process.exit(0);
+      }, 1000);
+      return;
+    }
     this.server.close(function() {
       log.info('NS_WakeUp::stop --> NS_WakeUp closed correctly');
     });
@@ -113,8 +140,7 @@ server.prototype = {
     // Check parameters
     if (!net.isIP(WakeUpHost.ip) ||     // Is a valid IP address
         isNaN(WakeUpHost.port) ||       // The port is a Number
-        WakeUpHost.port < 0 || WakeUpHost.port > 65535  // The port has a valid value
-    ) {
+        WakeUpHost.port < 0 || WakeUpHost.port > 65535) { // The port has a valid value
       log.debug('NS_WakeUp::onHTTPMessage --> Bad IP/Port');
       msg = '{"status": "ERROR", "reason": "Bad parameters. Bad IP/Port"}';
       response.setHeader('Content-Type', 'text/plain');
@@ -123,26 +149,32 @@ server.prototype = {
       return response.end();
     }
 
-    // Check protocolo
+    // Check protocol
     var protocol = this.PROTOCOL_UDPv4;
     if (WakeUpHost.proto && WakeUpHost.proto == 'tcp') {
       protocol = this.PROTOCOL_TCPv4;
     }
 
-    log.debug('NS_WakeUp::onHTTPMessage --> WakeUp IP = ' + WakeUpHost.ip + ':' + WakeUpHost.port + ' (protocol=' + protocol + ')');
+    log.debug('NS_WakeUp::onHTTPMessage --> WakeUp IP = ' + WakeUpHost.ip + ':' +
+              WakeUpHost.port + ' (protocol=' + protocol + ')');
     var message = new Buffer('NOTIFY ' + JSON.stringify(WakeUpHost));
     switch (protocol) {
       case this.PROTOCOL_TCPv4:
         // TCP Notification Message
-        var tcp4Client = net.createConnection({host: WakeUpHost.ip, port: WakeUpHost.port},
-            function() { //'connect' listener
+        var tcp4Client = net.createConnection({
+          host: WakeUpHost.ip,
+          port: WakeUpHost.port
+        },
+        function() { //'connect' listener
           log.debug('TCP Client connected');
           tcp4Client.write(message);
           tcp4Client.end();
         });
+
         tcp4Client.on('data', function(data) {
           log.debug('TCP Data received: ' + data.toString());
         });
+
         tcp4Client.on('error', function(e) {
           log.debug('TCP Client error ' + JSON.stringify(e));
           log.notify(log.messages.NOTIFY_WAKEUPPACKAGEFAILED, {
@@ -155,6 +187,7 @@ server.prototype = {
           response.write('{"status": "ERROR", "reason": "TCP Connection error"}');
           return response.end();
         });
+
         tcp4Client.on('end', function() {
           log.debug('TCP Client disconected');
           log.notify(log.messages.NOTIFY_WAKEUPPACKAGEOK, {
@@ -176,7 +209,8 @@ server.prototype = {
           WakeUpHost.port, WakeUpHost.ip,
           function(err, bytes) {
             if (err) {
-              log.info('Error sending UDP Datagram to ' + WakeUpHost.ip + ':' + WakeUpHost.port);
+              log.info('NS_WakeUp::onHTTPMessage --> Error sending UDP Datagram' +
+                       'to ' + WakeUpHost.ip + ':' + WakeUpHost.port);
             }
             else {
               log.notify(log.messages.NOTIFY_WAKEUPPACKAGEUDPDGRAMSENT, {

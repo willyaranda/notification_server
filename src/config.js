@@ -142,6 +142,11 @@ exports.NS_AS = {
   logfile: 'NS_AS.log',
 
   /**
+   * Number of processes which shall run in parallel
+   */
+  numProcesses: numCPUs,
+
+  /**
    * Maximum payload for a HTTP message (20 KiB)
    */
   MAX_PAYLOAD_SIZE: 20480,
@@ -218,6 +223,11 @@ exports.NS_UA_UDP = {
 
 exports.NS_WakeUp = {
   logfile: 'NS_WakeUp.log',
+
+  /**
+   * Number of processes which shall run in parallel
+   */
+  numProcesses: numCPUs,
 
   /**
    * Binding interfaces and ports

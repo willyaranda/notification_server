@@ -10,8 +10,12 @@ var dataStore = require('../common/datastore'),
     log = require('../common/logger.js'),
     helpers = require('../common/helpers.js'),
     Connectors = require('./connectors/connector.js').getConnector(),
-    ddbbsettings = require('../config.js').NS_AS.ddbbsettings,
     connectionstate = require('../common/constants.js').connectionstate;
+
+var node = require('../common/DB/node.js');
+var app = require('../common/DB/app.js');
+var async = require('async');
+var mongoose = require('mongoose');
 
 function datamanager() {
   log.info('dataManager --> In-Memory data manager loaded.');
@@ -31,7 +35,7 @@ datamanager.prototype = {
         return log.error(log.messages.ERROR_WSERRORGETTINGCONNECTION);
       } else {
         log.debug('dataManager::registerNode --> Registraton of the node into datastore ' + data.uaid);
-        dataStore.registerNode(
+        node.register(
           data.uaid,
           connector.getServer(),
           {
@@ -66,7 +70,7 @@ datamanager.prototype = {
       } else {
         fullyDisconnected = connector.canBeWakeup() ? connectionstate.WAKEUP : connectionstate.DISCONNECTED;
       }
-      dataStore.unregisterNode(
+      node.unregister(
         uaid,
         fullyDisconnected,
         function(error) {
@@ -99,50 +103,47 @@ datamanager.prototype = {
   },
 
   /**
-   * Gets a node info from DB
-   */
-  getNodeData: function(uaid, callback) {
-    dataStore.getNodeData(uaid, callback);
-  },
-
-  /**
-   * Gets a UAID from a given connection object
-   */
-  getUAID: function (connection) {
-    return connection.uaid || null;
-  },
-
-  // TODO: Verify that the node exists before add the application issue #59
-  /**
-   * Register a new application
+   * Register an application
    */
   registerApplication: function (appToken, channelID, uaid, cert, callback) {
-    // Store in persistent storage
-    dataStore.registerApplication(appToken, channelID, uaid, cert, callback);
+    async.parallel([
+      function(callback) {
+        node.registerApplication(uaid, channelID, appToken, callback);
+      },
+      function(callback) {
+        app.registerApplication(appToken, channelID, uaid, callback);
+      }],
+      function(err) {
+        if (err) {
+          callback(err);
+          return;
+        }
+        callback(null);
+        return;
+      }
+    );
   },
 
  /**
-   * Unregister an old application
+   * Unregister an application
    */
   unregisterApplication: function (appToken, uaid, callback) {
-    // Remove from persistent storage
-    dataStore.unregisterApplication(appToken, uaid, callback);
-  },
-
-  /**
-   * Recover a list of WA associated to a UA
-   */
-  getApplicationsForUA: function (uaid, callback) {
-    // Recover from the persistent storage
-    var callbackParam = false;
-    dataStore.getApplicationsForUA(uaid, callback, callbackParam);
-  },
-
-  /**
-   * Get all messages for a UA
-   */
-  getAllMessagesForUA: function(uaid, callback) {
-    dataStore.getAllMessagesForUA(uaid, callback);
+    async.parallel([
+      function(callback) {
+        node.unregisterApplication(uaid, appToken, callback);
+      },
+      function(callback) {
+        app.unregisterApplication(uaid, appToken, callback);
+      }],
+      function(err) {
+        if (err) {
+          callback(err);
+          return;
+        }
+        callback(null);
+        return;
+      }
+    );
   },
 
   /**
@@ -160,11 +161,8 @@ datamanager.prototype = {
     dataStore.removeMessage(messageId, uaid);
   },
 
-  /**
-   * ACKs an ack'ed message
-   */
-  ackMessage: function(uaid, channelID, version) {
-    dataStore.ackMessage(uaid, channelID, version);
+  close: function() {
+    dataStore.close();
   }
 };
 

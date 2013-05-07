@@ -217,6 +217,11 @@ exports.NS_WakeUp = {
   logfile: "NS_WakeUp.log",
 
   /**
+   * Number of processes which shall run in parallel
+   */
+  numProcesses: numCPUs,
+
+  /**
    * Binding interfaces and ports
    * [ iface, port ]
    */

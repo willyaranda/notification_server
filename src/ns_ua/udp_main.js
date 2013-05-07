@@ -34,7 +34,7 @@ NS_UA_UDP_main.prototype = {
 
     setTimeout(function() {
       process.exit(0);
-    }, 10000);
+    }, 1000);
   }
 };
 

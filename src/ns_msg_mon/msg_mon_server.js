@@ -8,9 +8,11 @@
 
 var log = require('../common/logger.js'),
     crypto = require('../common/cryptography.js'),
-    msgBroker = require('../common/msgbroker.js'),
-    dataStore = require('../common/datastore.js'),
+    msgBroker = require('../common/msgbroker.js')
     connectionstate = require('../common/constants.js').connectionstate;
+
+var node = require('../common/DB/node');
+var dataStore = require('../common/datastore');
 
 function monitor() {
   this.ready = false;
@@ -20,10 +22,10 @@ monitor.prototype = {
   init: function() {
     var self = this;
     msgBroker.on('brokerconnected', function() {
-      log.info('MSG_mon::init --> MSG monitor server running');
+      log.info('MSG_mon::init --> MSG monitor up and running');
       self.ready = true;
-      //We want a durable queue, that do not autodeletes on last closed connection, and
-      // with HA activated (mirrored in each rabbit server)
+      // We want a durable queue, that do not autodeletes on last closed
+      // connection, and with HA activated (mirrored in each rabbit server)
       var args = {
         durable: true,
         autoDelete: false,
@@ -47,11 +49,6 @@ monitor.prototype = {
       });
     });
 
-    // Connect to the message broker
-    process.nextTick(function() {
-      msgBroker.init();
-    });
-
     // Check if we are alive
     setTimeout(function() {
       if (!self.ready)
@@ -61,7 +58,6 @@ monitor.prototype = {
 
   stop: function() {
     msgBroker.close();
-    dataStore.close();
   }
 };
 
@@ -87,8 +83,6 @@ function onNewMessage(msg) {
     msgType = 2;
   }
 
-  console.log("MSGType is= " + msgType);
-
   switch (msgType) {
     case 0:
       handleOldNotification(json);
@@ -108,11 +102,11 @@ function onNewMessage(msg) {
 }
 
 function handleOldNotification(json) {
-  dataStore.getApplication(json.appToken, onApplicationData, json);
+  node.getApplication(json.appToken, onApplicationData, json);
 }
 
 function handleThialfiNotification(json) {
-  dataStore.getApplication(json.app, onApplicationData, json);
+  node.getApplication(json.app, onApplicationData, json);
 }
 
 function handleDesktopNotification(json) {

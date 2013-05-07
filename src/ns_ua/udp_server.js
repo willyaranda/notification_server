@@ -160,11 +160,6 @@ server.prototype = {
       });
     });
 
-    // Subscribe to the UDP common Queue
-    process.nextTick(function() {
-      msgBroker.init();
-    });
-
     //Check if we are alive
     setTimeout(function() {
       if (!self.ready)

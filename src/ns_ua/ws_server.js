@@ -26,6 +26,37 @@ var log = require('../common/logger.js'),
     https = require('https'),
     maintance = require('../common/maintance.js');
 
+var node = require('../common/DB/node');
+
+function getPendingMessages(uaid, cb) {
+  cb = helpers.checkCallback(cb);
+  log.debug('WS::onWSMessage::getPendingMessages --> Sending pending notifications');
+  node.getData(uaid, function(err, data) {
+    if (err) {
+      log.error(log.messages.ERROR_WSERRORGETTINGNODE);
+      return cb(null);
+    }
+    // In this case, there are no nodes for this (strange, since it was just registered)
+    if (!data || !data.ch || !Array.isArray(data.ch)) {
+      log.debug(log.messages.ERROR_WSNOCHANNELS);
+      return cb(null);
+    }
+    var channelsUpdate = [];
+    data.ch.forEach(function(channel) {
+      if (channel.vs && channel.new) {
+        channelsUpdate.push({
+          channelID: channel.ch,
+          version: channel.vs
+        });
+      }
+    });
+    if (channelsUpdate.length > 0) {
+      cb(channelsUpdate);
+    }
+  });
+}
+
+
 function server(ip, port, ssl) {
   this.ip = ip;
   this.port = port;
@@ -44,6 +75,8 @@ server.prototype = {
 
     if (cluster.isMaster) {
       // Fork workers.
+      log.info('NS_UA_WS::init --> We are goingo to fork ' + config.numProcesses +
+               ' processes');
       for (var i = 0; i < config.numProcesses; i++) {
         cluster.fork();
       }
@@ -55,7 +88,7 @@ server.prototype = {
             "code": code
           });
         } else {
-          log.info('worker ' + worker.process.pid + ' exit');
+          log.info('NS_UA_WS --> worker ' + worker.process.pid + ' exit');
         }
       });
     } else {
@@ -65,13 +98,14 @@ server.prototype = {
           key: fs.readFileSync(consts.key),
           cert: fs.readFileSync(consts.cert)
         };
-        this.server = require('https').createServer(options, this.onHTTPMessage.bind(this));
+        this.server = require('https').createServer(options,
+                                                    this.onHTTPMessage.bind(this));
       } else {
         this.server = require('http').createServer(this.onHTTPMessage.bind(this));
       }
       this.server.listen(this.port, this.ip);
-      log.info('WS::server::init --> HTTP' + (this.ssl ? 'S' : '') +
-               ' push UA_WS server running on ' + this.ip + ':' + this.port);
+      log.info('NS_UA_WS::init --> HTTP' + (this.ssl ? 'S ' : ' ') +
+               'server running on ' + this.ip + ':' + this.port);
 
       // Websocket init
       this.wsServer = new WebSocketServer({
@@ -167,11 +201,6 @@ server.prototype = {
           "class": 'ns_ws',
           "method": 'init'
         });
-      });
-
-      //Connect to msgBroker
-      process.nextTick(function() {
-        msgBroker.init();
       });
 
       //Check if we are alive
@@ -336,39 +365,11 @@ server.prototype = {
             nodeConnector.resetAutoclose();
         });
 
-        function getPendingMessages(cb) {
-          cb = helpers.checkCallback(cb);
-          log.debug('WS::onWSMessage::getPendingMessages --> Sending pending notifications');
-          dataManager.getNodeData(connection.uaid, function(err, data) {
-            if (err) {
-              log.error(log.messages.ERROR_WSERRORGETTINGNODE);
-              return cb(null);
-            }
-            // In this case, there are no nodes for this (strange, since it was just registered)
-            if (!data || !data.ch || !Array.isArray(data.ch)) {
-              log.error(log.messages.ERROR_WSNOCHANNELS);
-              return cb(null);
-            }
-            var channelsUpdate = [];
-            data.ch.forEach(function(channel) {
-              if (channel.vs) {
-                channelsUpdate.push({
-                  channelID: channel.ch,
-                  version: channel.vs
-                });
-              }
-            });
-            if (channelsUpdate.length > 0) {
-              cb(channelsUpdate);
-            }
-          });
-        }
-
         switch (query.messageType) {
           case undefined:
             log.debug('WS::onWSMessage --> PING package');
             setTimeout(function() {
-              getPendingMessages(function(channelsUpdate) {
+              getPendingMessages(connection.uaid, function(channelsUpdate) {
                 if (!channelsUpdate) {
                   return connection.sendUTF('{}');
                 }
@@ -605,7 +606,7 @@ server.prototype = {
                 return;
               }
 
-              dataManager.ackMessage(connection.uaid, el.channelID, el.version);
+              node.ackMessage(connection.uaid, el.channelID, el.version);
             });
             break;
 
@@ -825,7 +826,7 @@ server.prototype = {
     if (cluster.isMaster) {
       setTimeout(function() {
         process.exit(0);
-      }, 10000);
+      }, 1000);
       return;
     }
     log.info('WS::stop --> Closing WS server');
@@ -833,6 +834,7 @@ server.prototype = {
     this.ready = false;
     //Closing connection with msgBroker
     msgBroker.close();
+    dataManager.close();
     //Closing connections from the server
     this.server.close();
   }

@@ -24,7 +24,7 @@ NS_AS_main.prototype = {
         config.interfaces[a].port);
       this.servers[a].init();
     }
-    log.info('NS_AS::start --> server starting');
+    log.debug('NS_AS::start --> server starting');
   },
 
   stop: function() {
@@ -32,13 +32,13 @@ NS_AS_main.prototype = {
       return;
     }
     this.controlledClose = true;
-    log.info('NS_AS::stop --> server stopping');
+    log.debug('NS_AS::stop --> server stopping');
     this.servers.forEach(function(server) {
       server.stop();
     });
     setTimeout(function() {
       process.exit(0);
-    }, 10000);
+    }, 1000);
   }
 };
 

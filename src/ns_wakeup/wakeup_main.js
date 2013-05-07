@@ -27,7 +27,7 @@ NS_WakeUp_main.prototype = {
       this.servers[a].init();
     }
 
-    log.info('NS_WakeUp server starting');
+    log.debug('NS_WakeUp server starting');
   },
 
   stop: function() {
@@ -35,7 +35,7 @@ NS_WakeUp_main.prototype = {
       return;
     }
     this.controlledClose = true;
-    log.info('NS_WakeUp server stopping');
+    log.debug('NS_WakeUp server stopping');
     this.servers.forEach(function(server) {
       server.stop();
     });

@@ -8,13 +8,12 @@
  * Guillermo Lopez Leal <gll@tid.es>
  */
 
-var dataStore = require('../../common/datastore'),
-    msgBroker = require('../../common/msgbroker'),
+var msgBroker = require('../../common/msgbroker'),
     log = require('../../common/logger'),
-    errorcodes = require('../../common/constants').errorcodes.GENERAL,
-    errorcodesAS = require('../../common/constants').errorcodes.AS,
-    uuid = require('node-uuid'),
     isVersion = require('../../common/helpers').isVersion;
+
+var node = require('../../common/DB/node'),
+    app = require('../../common/DB/app');
 
 var kSimplePushASFrontendVersion = 'v1';
 
@@ -66,26 +65,24 @@ var SimplePushAPI_v1 = function() {
       return;
     }
 
+    //Always return 200, fool the sender… or not
+    response.statusCode = 200;
+    response.end('{}');
+
     //Now, we are safe to start using the path and data
     log.notify(log.messages.NOTIFY_APPTOKEN_VERSION, {
       'appToken': appToken,
       'version': version
     });
-    dataStore.getChannelIDForAppToken(appToken, function(error, channelID) {
-      // If there is no channelID associated with a appToken,
-      // fool the sender with a OK response, but nothing is done here.
+    app.getChannelIDForAppToken(appToken, function(error, channelID) {
       if (!channelID) {
-        response.statusCode = 200;
-        response.end('{}');
         return;
       }
-      var msg = dataStore.newVersion(appToken, channelID, version);
+      var msg = node.newVersion(appToken, channelID, version);
       msgBroker.push('newMessages', msg);
-      response.statusCode = 200;
-      response.end('{}');
       return;
     });
   };
 };
 
-module.exports = SimplePushAPI_v1;
+module.exports = new SimplePushAPI_v1();

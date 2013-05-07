@@ -19,7 +19,7 @@ var MsgBroker = function() {
   this.queues = [];
 
   this.init = function() {
-    log.info('msgBroker::queue.init --> Connecting to the queue servers');
+    log.debug('msgBroker::queue.init --> Connecting to the queue servers');
 
     //Create connection to the broker
     if (!Array.isArray(queuesConf)) queuesConf = [queuesConf];
@@ -72,9 +72,9 @@ var MsgBroker = function() {
    * Insert a new message into the queue
    */
   this.push = function(queueName, body) {
-    log.debug('msgbroker::push --> Sending to the queue ' + queueName + ' the package:', body);
+    log.debug('msgbroker::push --> Sending to the queue ' + queueName +
+              ' the package:', body);
     //Send to one of the connections that is connected to a queue
-    //TODO: send randomly , not to the first open connection (which is the easiest 'algorithm')
     var sent = false;
     this.queues.forEach(function(connection) {
       if(connection && !sent) {
@@ -95,7 +95,7 @@ var MsgBroker = function() {
 
     // Events for this queue
     conn.on('ready', (function() {
-      log.info("msgbroker::queue.ready --> Connected to one Message Broker");
+      log.debug("msgbroker::queue.ready --> Connected to one Message Broker");
       this.queues.push(conn);
       this.emit('queueconnected');
     }).bind(this));
@@ -133,6 +133,9 @@ var MsgBroker = function() {
 util.inherits(MsgBroker, events.EventEmitter);
 
 var _msgbroker = new MsgBroker();
+process.nextTick(function() {
+  _msgbroker.init();
+});
 function getMsgBroker () {
   return _msgbroker;
 }
